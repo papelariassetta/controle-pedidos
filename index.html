@@ -140,7 +140,7 @@ function renderForm(){
    <label>Cliente<input name="cliente" required></label>
    <label>Data do pedido (opcional)<input name="data" type="date"></label>
    <label>Volumes<input name="volumes" type="number" min="1" step="1" required></label>
-   ${t.end?`<label>Endereço<input name="endereco" required></label>`:`<label>Quem retirou<input name="quem" placeholder="preencher na retirada"></label>`}
+   ${t.end?`<label>Endereço<input name="endereco" required></label>`:""}
    ${pg}<button class="b" type="submit">+ Adicionar em ${t.nome}</button></form>`;
   $("#f").onsubmit=e=>{e.preventDefault();
     const d=Object.fromEntries(new FormData(e.target).entries());
@@ -174,13 +174,13 @@ function acao(a,id){
   const p=pedidos.find(x=>x.id===id);if(!p)return;
   if(a==="del")return apagar(p);
   if(a==="pago"){p.pago=p.pago==="Sim"?"Não":"Sim";return salvar(p)}
-  if(a==="reabrir"){p.status="aberto";delete p.finalizadoEm;delete p.horario;return salvar(p)}
+  if(a==="reabrir"){p.status="aberto";delete p.finalizadoEm;delete p.horario;delete p.quem;return salvar(p)}
   if(a==="fin"){
+    if(p.pago!=="Sim"&&!confirm("O pedido "+p.numero+" ainda NÃO está pago. Finalizar mesmo assim?"))return;
     if(p.tipo==="retirada"||p.tipo==="carro"){
-      if(!p.quem){const n=prompt("Quem retirou o pedido "+p.numero+"?");if(!n)return;p.quem=n}
+      const n=prompt("Quem retirou o pedido "+p.numero+"?");if(!n||!n.trim())return;p.quem=n.trim();
       p.horario=hora();
     }
-    if(p.pago!=="Sim"&&!confirm("O pedido "+p.numero+" ainda NÃO está pago. Finalizar mesmo assim?"))return;
     p.status="finalizado";p.finalizadoEm=Date.now();salvar(p);
   }
 }
