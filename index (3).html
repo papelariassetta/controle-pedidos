@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Controle de Retirada de Pedidos</title>
+<style>
+:root{color-scheme:light;--bg:#f5f6f8;--card:#fff;--tx:#1d2330;--mut:#667085;--bd:#dfe3ea;--pri:#1d4ed8;--ok:#15803d;--no:#b91c1c;--okb:#dcfce7;--nob:#fee2e2;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#12151c;--card:#1b2029;--tx:#e8ebf2;--mut:#9aa4b5;--bd:#2d3443;--pri:#6b94ff;--ok:#4ade80;--no:#f87171;--okb:#14351f;--nob:#3b1818}}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#12151c;--card:#1b2029;--tx:#e8ebf2;--mut:#9aa4b5;--bd:#2d3443;--pri:#6b94ff;--ok:#4ade80;--no:#f87171;--okb:#14351f;--nob:#3b1818}
+*{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{padding:16px 16px 0;max-width:1200px;margin:auto}
+h1{font-size:20px;margin:0 0 12px}
+.tabs{display:flex;gap:6px;overflow-x:auto;border-bottom:1px solid var(--bd)}
+.tab{border:0;background:none;color:var(--mut);padding:10px 14px;font:inherit;font-weight:600;cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap}
+.tab.on{color:var(--pri);border-color:var(--pri)}
+.tab b{background:var(--bd);color:var(--tx);border-radius:10px;padding:1px 7px;font-size:12px;margin-left:4px}
+main{max-width:1200px;margin:auto;padding:16px}
+form{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:16px}
+label{display:flex;flex-direction:column;font-size:12px;color:var(--mut);gap:3px}
+input,select{font:inherit;padding:8px;border:1px solid var(--bd);border-radius:6px;background:var(--bg);color:var(--tx);width:100%}
+button.b{font:inherit;font-weight:600;border:0;border-radius:6px;padding:9px 14px;background:var(--pri);color:#fff;cursor:pointer;align-self:end}
+button.s{font:inherit;font-size:13px;border:1px solid var(--bd);border-radius:6px;padding:5px 9px;background:var(--card);color:var(--tx);cursor:pointer;margin-right:4px}
+button.f{background:var(--ok);color:#fff;border-color:var(--ok)}
+.wrap{overflow-x:auto;background:var(--card);border:1px solid var(--bd);border-radius:10px}
+table{border-collapse:collapse;width:100%;min-width:760px}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--bd);font-size:14px;vertical-align:middle}
+th{font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.03em}
+tr:last-child td{border-bottom:0}
+.pg{border:0;border-radius:12px;padding:2px 10px;font-size:12px;font-weight:700;cursor:pointer}
+.pg.y{background:var(--okb);color:var(--ok)}.pg.n{background:var(--nob);color:var(--no)}
+.empty{padding:28px;text-align:center;color:var(--mut)}
+.bar{display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.bar input{max-width:320px}
+.note{font-size:12px;color:var(--mut);margin-top:10px}
+[hidden]{display:none!important}
+#login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px}
+#lf{display:flex;flex-direction:column;gap:12px;max-width:340px;width:100%;margin:0}
+#lerr{color:var(--no);font-size:13px;min-height:18px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+</style>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+</head>
+<body>
+<div id="login"><form id="lf"><h1>📦 Controle de Retirada de Pedidos</h1>
+<label>E-mail<input id="em" type="email" required autocomplete="username"></label>
+<label>Senha<input id="sn" type="password" required autocomplete="current-password"></label>
+<div id="lerr"></div><button class="b" type="submit">Entrar</button></form></div>
+<div id="app" hidden>
+<header>
+<div class="top"><h1>📦 Controle de Retirada de Pedidos</h1><button class="s" id="sair">Sair</button></div>
+<div class="tabs" id="tabs"></div>
+</header>
+<main>
+<div id="formBox"></div>
+<div class="bar"><input id="q" placeholder="Buscar por pedido, cliente, vendedor…"></div>
+<div class="wrap" id="list"></div>
+<div class="note" id="note"></div>
+</main>
+</div>
+<script>
+const TABS={
+ retirada:{nome:"Retirada",ret:true},
+ entrega:{nome:"Entrega",end:true},
+ carro:{nome:"Carro de Linha",ret:true},
+ crato:{nome:"Crato",end:true},
+ fin:{nome:"Finalizados"}
+};
+const PAG=["Dinheiro","Pix","Cartão de crédito","Cartão de débito","Boleto","Crediário","Cheque","Na entrega"];
+let db=null,col=null,pedidos=[],tab="retirada",busca="";
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const hora=()=>new Date().toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+const fmtData=s=>s?s.split("-").reverse().join("/"):"";
+const dataf=t=>t?new Date(t).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"";
+
+/* Firebase: cole aqui o firebaseConfig do seu projeto */
+const firebaseConfig={
+  apiKey:"AIzaSyDUbRGy8MVkeuUyKWuKEDi5lOqPERbvoUc",
+  authDomain:"controle-de-pedidos-dipel.firebaseapp.com",
+  projectId:"controle-de-pedidos-dipel",
+  storageBucket:"controle-de-pedidos-dipel.firebasestorage.app",
+  messagingSenderId:"474522616645",
+  appId:"1:474522616645:web:d0bc72831b9c2ca3df342c"
+};
+let unsub=null;
+function iniciar(){
+  if(firebaseConfig.apiKey==="COLE_AQUI"){$("#lerr").textContent="Configure o firebaseConfig no início do script.";return}
+  firebase.initializeApp(firebaseConfig);
+  const auth=firebase.auth();col=firebase.firestore().collection("pedidos");
+  auth.onAuthStateChanged(u=>{
+    if(u){
+      $("#login").hidden=true;$("#app").hidden=false;
+      unsub=col.onSnapshot(s=>{pedidos=s.docs.map(d=>({id:d.id,...d.data()}));render()},
+        e=>{$("#note").textContent="Erro ao carregar pedidos: "+e.message});
+      $("#note").textContent="Conectado: todos os computadores logados veem os mesmos pedidos.";
+    }else{
+      if(unsub){unsub();unsub=null}
+      pedidos=[];$("#login").hidden=false;$("#app").hidden=true;
+    }
+  });
+  $("#lf").onsubmit=async e=>{e.preventDefault();$("#lerr").textContent="";
+    try{await auth.signInWithEmailAndPassword($("#em").value.trim(),$("#sn").value)}
+    catch(err){$("#lerr").textContent="E-mail ou senha incorretos."}};
+  $("#sair").onclick=()=>auth.signOut();
+}
+async function salvar(p){
+  const {id,...d}=p;
+  try{ if(id) await col.doc(id).set(d); else await col.add(d);}
+  catch(e){alert("Não foi possível salvar: "+(e.message||e.code))}
+}
+async function apagar(p){
+  if(!confirm("Excluir o pedido "+p.numero+"?"))return;
+  try{await col.doc(p.id).delete()}catch(e){alert("Erro ao excluir")}
+}
+
+function renderTabs(){
+  $("#tabs").innerHTML=Object.entries(TABS).map(([k,t])=>{
+    const n=pedidos.filter(p=>k==="fin"?p.status==="finalizado":(p.tipo===k&&p.status!=="finalizado")).length;
+    return `<button class="tab ${k===tab?"on":""}" data-t="${k}">${t.nome}<b>${n}</b></button>`}).join("");
+  document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{tab=b.dataset.t;render()});
+}
+function renderForm(){
+  const t=TABS[tab];
+  if(tab==="fin"){$("#formBox").innerHTML="";return}
+  const pg=`<label>Forma de pagamento<select name="pagamento">${PAG.map(x=>`<option>${x}</option>`).join("")}</select></label>
+   <label>Já pagou?<select name="pago"><option>Não</option><option>Sim</option></select></label>`;
+  $("#formBox").innerHTML=`<form id="f">
+   <label>Nº do pedido / NF<input name="numero" required></label>
+   <label>Vendedor<input name="vendedor" required></label>
+   <label>Cliente<input name="cliente" required></label>
+   <label>Data do pedido (opcional)<input name="data" type="date"></label>
+   ${t.end?`<label>Endereço<input name="endereco" required></label>`:`<label>Quem retirou<input name="quem" placeholder="preencher na retirada"></label>
+   <label>Horário da retirada<input name="horario" type="time"></label>`}
+   ${pg}<button class="b" type="submit">+ Adicionar em ${t.nome}</button></form>`;
+  $("#f").onsubmit=e=>{e.preventDefault();
+    const d=Object.fromEntries(new FormData(e.target).entries());
+    d.tipo=tab;d.status="aberto";d.criado=Date.now();
+    salvar(d);e.target.reset();e.target.numero.focus();};
+}
+function renderList(){
+  const t=TABS[tab];
+  let rows=pedidos.filter(p=>tab==="fin"?p.status==="finalizado":(p.tipo===tab&&p.status!=="finalizado"));
+  if(busca){const b=busca.toLowerCase();rows=rows.filter(p=>[p.numero,p.cliente,p.vendedor,p.quem,p.endereco].join(" ").toLowerCase().includes(b))}
+  rows.sort((a,b)=>tab==="fin"?(b.finalizadoEm||0)-(a.finalizadoEm||0):(a.criado||0)-(b.criado||0));
+  if(!rows.length){$("#list").innerHTML=`<div class="empty">Nenhum pedido ${tab==="fin"?"finalizado":"em aberto"} aqui.</div>`;return}
+  const showEnd=tab==="entrega"||tab==="crato";
+  const showRet=tab==="retirada"||tab==="carro";
+  const head=`<th>Pedido/NF</th><th>Vendedor</th><th>Cliente</th><th>Data do pedido</th>`+
+    (tab==="fin"?`<th>Origem</th><th>Endereço / Retirou</th><th>Horário</th>`:showEnd?`<th>Endereço</th>`:`<th>Quem retirou</th><th>Horário</th>`)+
+    `<th>Pagamento</th><th>Pago?</th>`+(tab==="fin"?`<th>Finalizado em</th>`:"")+`<th>Ações</th>`;
+  const body=rows.map(p=>{
+    const isEnd=p.tipo==="entrega"||p.tipo==="crato";
+    const mid=tab==="fin"?`<td>${esc(TABS[p.tipo].nome)}</td><td>${esc(isEnd?p.endereco:p.quem)}</td><td>${esc(isEnd?"":p.horario)}</td>`
+      :showEnd?`<td>${esc(p.endereco)}</td>`:`<td>${esc(p.quem)}</td><td>${esc(p.horario)}</td>`;
+    const acoes=tab==="fin"?`<button class="s" data-a="reabrir" data-i="${p.id}">Reabrir</button><button class="s" data-a="del" data-i="${p.id}">Excluir</button>`
+      :`<button class="s f" data-a="fin" data-i="${p.id}">Finalizar</button><button class="s" data-a="del" data-i="${p.id}">Excluir</button>`;
+    return `<tr><td><b>${esc(p.numero)}</b></td><td>${esc(p.vendedor)}</td><td>${esc(p.cliente)}</td><td>${fmtData(p.data)}</td>${mid}
+      <td>${esc(p.pagamento)}</td><td><button class="pg ${p.pago==="Sim"?"y":"n"}" data-a="pago" data-i="${p.id}" title="Clique para alternar">${p.pago==="Sim"?"Sim":"Não"}</button></td>
+      ${tab==="fin"?`<td>${dataf(p.finalizadoEm)}</td>`:""}<td>${acoes}</td></tr>`}).join("");
+  $("#list").innerHTML=`<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+  document.querySelectorAll("[data-a]").forEach(b=>b.onclick=()=>acao(b.dataset.a,b.dataset.i));
+}
+function acao(a,id){
+  const p=pedidos.find(x=>x.id===id);if(!p)return;
+  if(a==="del")return apagar(p);
+  if(a==="pago"){p.pago=p.pago==="Sim"?"Não":"Sim";return salvar(p)}
+  if(a==="reabrir"){p.status="aberto";delete p.finalizadoEm;return salvar(p)}
+  if(a==="fin"){
+    if(p.tipo==="retirada"||p.tipo==="carro"){
+      if(!p.quem){const n=prompt("Quem retirou o pedido "+p.numero+"?");if(!n)return;p.quem=n}
+      if(!p.horario)p.horario=hora();
+    }
+    if(p.pago!=="Sim"&&!confirm("O pedido "+p.numero+" ainda NÃO está pago. Finalizar mesmo assim?"))return;
+    p.status="finalizado";p.finalizadoEm=Date.now();salvar(p);
+  }
+}
+function render(){
+  renderTabs();
+  const ativo=document.activeElement;
+  if(!ativo||ativo.tagName!=="INPUT"||ativo.id==="q")renderForm_once();
+  renderList();
+}
+let lastTab=null;
+function renderForm_once(){if(lastTab!==tab){renderForm();lastTab=tab}}
+$("#q").oninput=e=>{busca=e.target.value;renderList()};
+iniciar();
+</script>
+</body>
+</html>
