@@ -139,10 +139,9 @@ function renderForm(){
    <label>Vendedor<input name="vendedor" required></label>
    <label>Cliente<input name="cliente" required></label>
    <label>Data do pedido (opcional)<input name="data" type="date"></label>
-   <label>Horário do pedido (opcional)<input name="hora" type="time"></label>
+   ${t.end?"":`<label>Horário da retirada<input name="horario" type="time"></label>`}
    <label>Volumes<input name="volumes" type="number" min="1" step="1" required></label>
-   ${t.end?`<label>Endereço<input name="endereco" required></label>`:`<label>Quem retirou<input name="quem" placeholder="preencher na retirada"></label>
-   <label>Horário da retirada<input name="horario" type="time"></label>`}
+   ${t.end?`<label>Endereço<input name="endereco" required></label>`:`<label>Quem retirou<input name="quem" placeholder="preencher na retirada"></label>`}
    ${pg}<button class="b" type="submit">+ Adicionar em ${t.nome}</button></form>`;
   $("#f").onsubmit=e=>{e.preventDefault();
     const d=Object.fromEntries(new FormData(e.target).entries());
@@ -157,16 +156,16 @@ function renderList(){
   if(!rows.length){$("#list").innerHTML=`<div class="empty">Nenhum pedido ${tab==="fin"?"finalizado":"em aberto"} aqui.</div>`;return}
   const showEnd=tab==="entrega"||tab==="crato";
   const showRet=tab==="retirada"||tab==="carro";
-  const head=`<th>Pedido/NF</th><th>Vendedor</th><th>Cliente</th><th>Data do pedido</th><th>Volumes</th>`+
-    (tab==="fin"?`<th>Origem</th><th>Endereço / Retirou</th><th>Horário</th>`:showEnd?`<th>Endereço</th>`:`<th>Quem retirou</th><th>Horário</th>`)+
+  const head=`<th>Pedido/NF</th><th>Vendedor</th><th>Cliente</th><th>Data do pedido</th>${showEnd?"":"<th>Horário da retirada</th>"}<th>Volumes</th>`+
+    (tab==="fin"?`<th>Origem</th><th>Endereço / Retirou</th>`:showEnd?`<th>Endereço</th>`:`<th>Quem retirou</th>`)+
     `<th>Pagamento</th><th>Pago?</th>`+(tab==="fin"?`<th>Finalizado em</th>`:"")+`<th>Ações</th>`;
   const body=rows.map(p=>{
     const isEnd=p.tipo==="entrega"||p.tipo==="crato";
-    const mid=tab==="fin"?`<td>${esc(TABS[p.tipo].nome)}</td><td>${esc(isEnd?p.endereco:p.quem)}</td><td>${esc(isEnd?"":p.horario)}</td>`
-      :showEnd?`<td>${esc(p.endereco)}</td>`:`<td>${esc(p.quem)}</td><td>${esc(p.horario)}</td>`;
+    const mid=tab==="fin"?`<td>${esc(TABS[p.tipo].nome)}</td><td>${esc(isEnd?p.endereco:p.quem)}</td>`
+      :showEnd?`<td>${esc(p.endereco)}</td>`:`<td>${esc(p.quem)}</td>`;
     const acoes=tab==="fin"?`<button class="s" data-a="reabrir" data-i="${p.id}">Reabrir</button><button class="s" data-a="del" data-i="${p.id}">Excluir</button>`
       :`<button class="s f" data-a="fin" data-i="${p.id}">Finalizar</button><button class="s" data-a="del" data-i="${p.id}">Excluir</button>`;
-    return `<tr><td><b>${esc(p.numero)}</b></td><td>${esc(p.vendedor)}</td><td>${esc(p.cliente)}</td><td>${fmtData(p.data)}${p.hora?" "+esc(p.hora):""}</td><td>${esc(p.volumes)}</td>${mid}
+    return `<tr><td><b>${esc(p.numero)}</b></td><td>${esc(p.vendedor)}</td><td>${esc(p.cliente)}</td><td>${fmtData(p.data)}</td>${showEnd?"":`<td>${esc(p.horario)}</td>`}<td>${esc(p.volumes)}</td>${mid}
       <td>${esc(p.pagamento)}</td><td><button class="pg ${p.pago==="Sim"?"y":"n"}" data-a="pago" data-i="${p.id}" title="Clique para alternar">${p.pago==="Sim"?"Sim":"Não"}</button></td>
       ${tab==="fin"?`<td>${dataf(p.finalizadoEm)}</td>`:""}<td>${acoes}</td></tr>`}).join("");
   $("#list").innerHTML=`<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
