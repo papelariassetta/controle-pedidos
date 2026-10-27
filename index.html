@@ -73,11 +73,15 @@ const TABS={
  entrega:{nome:"Entrega",end:true},
  carro:{nome:"Carro de Linha",ret:true},
  crato:{nome:"Crato",end:true},
+ conferir:{nome:"À conferir"},
  fin:{nome:"Finalizados"}
 };
 const PAG=["Dinheiro","Pix","Cartão de crédito","Cartão de débito","Boleto","Crediário","Cheque","Na entrega"];
 let db=null,col=null,pedidos=[],tab="retirada",busca="";
 const $=s=>document.querySelector(s);
+const naAba=(p,k)=>k==="fin"?p.status==="finalizado":k==="conferir"?p.status==="conferir":(p.tipo===k&&p.status!=="finalizado"&&p.status!=="conferir");
+const BRL=v=>Number(v).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+const precisaConferir=p=>/pix|boleto/i.test(p.pagamento||"");
 const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const hora=()=>new Date().toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
 const fmtData=s=>s?s.split("-").reverse().join("/"):"";
@@ -125,14 +129,15 @@ async function apagar(p){
 
 function renderTabs(){
   $("#tabs").innerHTML=Object.entries(TABS).map(([k,t])=>{
-    const n=pedidos.filter(p=>k==="fin"?p.status==="finalizado":(p.tipo===k&&p.status!=="finalizado")).length;
+    const n=pedidos.filter(p=>naAba(p,k)).length;
     return `<button class="tab ${k===tab?"on":""}" data-t="${k}">${t.nome}<b>${n}</b></button>`}).join("");
   document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{tab=b.dataset.t;render()});
 }
 function renderForm(){
   const t=TABS[tab];
-  if(tab==="fin"){$("#formBox").innerHTML="";return}
+  if(tab==="fin"||tab==="conferir"){$("#formBox").innerHTML="";return}
   const pg=`<label>Forma de pagamento<select name="pagamento">${PAG.map(x=>`<option>${x}</option>`).join("")}</select></label>
+   <label id="vl" hidden>Valor para conferir (R$)<input name="valor" type="number" min="0.01" step="0.01" inputmode="decimal"></label>
    <label>Já pagou?<select name="pago"><option>Não</option><option>Sim</option></select></label>`;
   $("#formBox").innerHTML=`<form id="f">
    <label>Nº do pedido / NF<input name="numero" required></label>
@@ -142,31 +147,37 @@ function renderForm(){
    <label>Volumes<input name="volumes" type="number" min="1" step="1" required></label>
    ${t.end?`<label>Endereço<input name="endereco" required></label>`:""}
    ${pg}<button class="b" type="submit">+ Adicionar em ${t.nome}</button></form>`;
+  const sel=$("#f").pagamento,vl=$("#vl"),vin=$("#f").valor;
+  const tg=()=>{const on=/pix|boleto/i.test(sel.value);vl.hidden=!on;vin.required=on;if(!on)vin.value=""};
+  sel.onchange=tg;tg();
   $("#f").onsubmit=e=>{e.preventDefault();
     const d=Object.fromEntries(new FormData(e.target).entries());
+    if(d.valor)d.valor=parseFloat(d.valor);else delete d.valor;
     d.tipo=tab;d.status="aberto";d.criado=Date.now();
-    salvar(d);e.target.reset();e.target.numero.focus();};
+    salvar(d);e.target.reset();tg();e.target.numero.focus();};
 }
 function renderList(){
   const t=TABS[tab];
-  let rows=pedidos.filter(p=>tab==="fin"?p.status==="finalizado":(p.tipo===tab&&p.status!=="finalizado"));
+  let rows=pedidos.filter(p=>naAba(p,tab));
   if(busca){const b=busca.toLowerCase();rows=rows.filter(p=>[p.numero,p.cliente,p.vendedor,p.quem,p.endereco].join(" ").toLowerCase().includes(b))}
   rows.sort((a,b)=>tab==="fin"?(b.finalizadoEm||0)-(a.finalizadoEm||0):(a.criado||0)-(b.criado||0));
-  if(!rows.length){$("#list").innerHTML=`<div class="empty">Nenhum pedido ${tab==="fin"?"finalizado":"em aberto"} aqui.</div>`;return}
+  if(!rows.length){$("#list").innerHTML=`<div class="empty">Nenhum pedido ${tab==="fin"?"finalizado":tab==="conferir"?"para conferir":"em aberto"} aqui.</div>`;return}
+  const view=tab==="fin"||tab==="conferir";
   const showEnd=tab==="entrega"||tab==="crato";
   const showRet=tab==="retirada"||tab==="carro";
   const head=`<th>Pedido/NF</th><th>Vendedor</th><th>Cliente</th><th>Data do pedido</th>${showEnd?"":"<th>Horário da retirada</th>"}<th>Volumes</th>`+
-    (tab==="fin"?`<th>Origem</th><th>Endereço / Retirou</th>`:showEnd?`<th>Endereço</th>`:`<th>Quem retirou</th>`)+
-    `<th>Pagamento</th><th>Pago?</th>`+(tab==="fin"?`<th>Finalizado em</th>`:"")+`<th>Ações</th>`;
+    (view?`<th>Origem</th><th>Endereço / Retirou</th>`:showEnd?`<th>Endereço</th>`:`<th>Quem retirou</th>`)+
+    `<th>Pagamento</th><th>Valor</th><th>Pago?</th>`+(tab==="fin"?`<th>Finalizado em</th>`:tab==="conferir"?`<th>Saída em</th>`:"")+`<th>Ações</th>`;
   const body=rows.map(p=>{
     const isEnd=p.tipo==="entrega"||p.tipo==="crato";
-    const mid=tab==="fin"?`<td>${esc(TABS[p.tipo].nome)}</td><td>${esc(isEnd?p.endereco:p.quem)}</td>`
+    const mid=view?`<td>${esc(TABS[p.tipo].nome)}</td><td>${esc(isEnd?p.endereco:p.quem)}</td>`
       :showEnd?`<td>${esc(p.endereco)}</td>`:`<td>${esc(p.quem)}</td>`;
     const acoes=tab==="fin"?`<button class="s" data-a="reabrir" data-i="${p.id}">Reabrir</button><button class="s" data-a="del" data-i="${p.id}">Excluir</button>`
+      :tab==="conferir"?`<button class="s f" data-a="conf" data-i="${p.id}">Pagamento conferido</button><button class="s" data-a="voltar" data-i="${p.id}">Voltar</button><button class="s" data-a="del" data-i="${p.id}">Excluir</button>`
       :`<button class="s f" data-a="fin" data-i="${p.id}">Finalizar</button><button class="s" data-a="del" data-i="${p.id}">Excluir</button>`;
     return `<tr><td><b>${esc(p.numero)}</b></td><td>${esc(p.vendedor)}</td><td>${esc(p.cliente)}</td><td>${fmtData(p.data)}</td>${showEnd?"":`<td>${esc(p.horario)}</td>`}<td>${esc(p.volumes)}</td>${mid}
-      <td>${esc(p.pagamento)}</td><td><button class="pg ${p.pago==="Sim"?"y":"n"}" data-a="pago" data-i="${p.id}" title="Clique para alternar">${p.pago==="Sim"?"Sim":"Não"}</button></td>
-      ${tab==="fin"?`<td>${dataf(p.finalizadoEm)}</td>`:""}<td>${acoes}</td></tr>`}).join("");
+      <td>${esc(p.pagamento)}</td><td>${p.valor!=null?BRL(p.valor):""}</td><td><button class="pg ${p.pago==="Sim"?"y":"n"}" data-a="pago" data-i="${p.id}" title="Clique para alternar">${p.pago==="Sim"?"Sim":"Não"}</button></td>
+      ${tab==="fin"?`<td>${dataf(p.finalizadoEm)}</td>`:tab==="conferir"?`<td>${dataf(p.saidaEm)}</td>`:""}<td>${acoes}</td></tr>`}).join("");
   $("#list").innerHTML=`<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
   document.querySelectorAll("[data-a]").forEach(b=>b.onclick=()=>acao(b.dataset.a,b.dataset.i));
 }
@@ -174,14 +185,20 @@ function acao(a,id){
   const p=pedidos.find(x=>x.id===id);if(!p)return;
   if(a==="del")return apagar(p);
   if(a==="pago"){p.pago=p.pago==="Sim"?"Não":"Sim";return salvar(p)}
-  if(a==="reabrir"){p.status="aberto";delete p.finalizadoEm;delete p.horario;delete p.quem;return salvar(p)}
+  if(a==="reabrir"){p.status="aberto";delete p.finalizadoEm;delete p.saidaEm;delete p.horario;delete p.quem;return salvar(p)}
+  if(a==="voltar"){p.status="aberto";delete p.saidaEm;delete p.horario;delete p.quem;return salvar(p)}
+  if(a==="conf"){
+    if(!confirm("Confirma que o "+(/boleto/i.test(p.pagamento)?"boleto":"PIX")+(p.valor!=null?" de "+BRL(p.valor):"")+" do pedido "+p.numero+" foi pago?"))return;
+    p.pago="Sim";p.status="finalizado";p.finalizadoEm=Date.now();return salvar(p)}
   if(a==="fin"){
-    if(p.pago!=="Sim"&&!confirm("O pedido "+p.numero+" ainda NÃO está pago. Finalizar mesmo assim?"))return;
+    if(!precisaConferir(p)&&p.pago!=="Sim"&&!confirm("O pedido "+p.numero+" ainda NÃO está pago. Finalizar mesmo assim?"))return;
     if(p.tipo==="retirada"||p.tipo==="carro"){
       const n=prompt("Quem retirou o pedido "+p.numero+"?");if(!n||!n.trim())return;p.quem=n.trim();
       p.horario=hora();
     }
-    p.status="finalizado";p.finalizadoEm=Date.now();salvar(p);
+    if(precisaConferir(p)){p.status="conferir";p.saidaEm=Date.now()}
+    else{p.status="finalizado";p.finalizadoEm=Date.now()}
+    salvar(p);
   }
 }
 function render(){
