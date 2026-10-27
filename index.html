@@ -139,6 +139,7 @@ function renderForm(){
    <label>Vendedor<input name="vendedor" required></label>
    <label>Cliente<input name="cliente" required></label>
    <label>Data do pedido (opcional)<input name="data" type="date"></label>
+   <label>Horário do pedido (opcional)<input name="hora" type="time"></label>
    <label>Volumes<input name="volumes" type="number" min="1" step="1" required></label>
    ${t.end?`<label>Endereço<input name="endereco" required></label>`:`<label>Quem retirou<input name="quem" placeholder="preencher na retirada"></label>
    <label>Horário da retirada<input name="horario" type="time"></label>`}
@@ -165,7 +166,7 @@ function renderList(){
       :showEnd?`<td>${esc(p.endereco)}</td>`:`<td>${esc(p.quem)}</td><td>${esc(p.horario)}</td>`;
     const acoes=tab==="fin"?`<button class="s" data-a="reabrir" data-i="${p.id}">Reabrir</button><button class="s" data-a="del" data-i="${p.id}">Excluir</button>`
       :`<button class="s f" data-a="fin" data-i="${p.id}">Finalizar</button><button class="s" data-a="del" data-i="${p.id}">Excluir</button>`;
-    return `<tr><td><b>${esc(p.numero)}</b></td><td>${esc(p.vendedor)}</td><td>${esc(p.cliente)}</td><td>${fmtData(p.data)}</td><td>${esc(p.volumes)}</td>${mid}
+    return `<tr><td><b>${esc(p.numero)}</b></td><td>${esc(p.vendedor)}</td><td>${esc(p.cliente)}</td><td>${fmtData(p.data)}${p.hora?" "+esc(p.hora):""}</td><td>${esc(p.volumes)}</td>${mid}
       <td>${esc(p.pagamento)}</td><td><button class="pg ${p.pago==="Sim"?"y":"n"}" data-a="pago" data-i="${p.id}" title="Clique para alternar">${p.pago==="Sim"?"Sim":"Não"}</button></td>
       ${tab==="fin"?`<td>${dataf(p.finalizadoEm)}</td>`:""}<td>${acoes}</td></tr>`}).join("");
   $("#list").innerHTML=`<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
