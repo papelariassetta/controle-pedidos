@@ -24,9 +24,7 @@ button.b{font:inherit;font-weight:600;border:0;border-radius:6px;padding:9px 14p
 button.s{font:inherit;font-size:13px;border:1px solid var(--bd);border-radius:6px;padding:5px 9px;background:var(--card);color:var(--tx);cursor:pointer;margin-right:4px}
 button.f{background:var(--ok);color:#fff;border-color:var(--ok)}
 .wrap{overflow-x:auto;background:var(--card);border:1px solid var(--bd);border-radius:10px}
-table{border-collapse:collapse;width:100%}
-td,th{white-space:nowrap}
-td.wr{white-space:normal;overflow-wrap:normal;word-break:normal;min-width:180px}
+table{border-collapse:collapse;width:100%;min-width:760px}
 th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--bd);font-size:14px;vertical-align:middle}
 th{font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.03em}
 tr:last-child td{border-bottom:0}
@@ -50,17 +48,6 @@ dialog{background:var(--card);color:var(--tx);border:1px solid var(--bd);border-
 dialog::backdrop{background:rgba(0,0,0,.55)}
 dialog form{border:0;margin:0}
 a{color:var(--pri);text-decoration:none}a:hover{text-decoration:underline}
-@media (max-width:1100px){th,td{padding:7px 6px;font-size:13px}}
-@media (max-width:760px){
- td,th{white-space:normal;overflow-wrap:normal;word-break:normal}
- table,tbody,tr,td{display:block;width:100%}
- thead{display:none}
- tr{border-bottom:2px solid var(--bd);padding:8px 0}
- td{display:flex;justify-content:space-between;gap:12px;border:0;padding:5px 12px;text-align:right;font-size:14px}
- td::before{content:attr(data-l);color:var(--mut);font-size:12px;text-transform:uppercase;text-align:left;flex:none}
- td:last-child{justify-content:flex-end;flex-wrap:wrap}
- td:last-child::before{display:none}
-}
 </style>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
@@ -168,7 +155,6 @@ function renderForm(){
    ${t.end?`<label>Endereço<input name="endereco" required></label>
    <label>Cidade<input name="cidade" list="cidades" value="${tab==="crato"?"Crato":"Juazeiro do Norte"}"></label>`:""}
    ${pg}
-   <label style="grid-column:1/-1">Observação (opcional)<input name="obs" maxlength="300"></label>
    <button class="b" type="submit">+ Adicionar em ${t.nome}</button></form>`;
   const sel=$("#f").pagamento,vl=$("#vl"),vin=$("#f").valor;
   const tg=()=>{const on=/pix|boleto/i.test(sel.value);vl.hidden=!on;vin.required=on;if(!on)vin.value=""};
@@ -176,7 +162,6 @@ function renderForm(){
   $("#f").onsubmit=e=>{e.preventDefault();
     const d=Object.fromEntries(new FormData(e.target).entries());
     if(d.valor)d.valor=parseFloat(d.valor);else delete d.valor;
-    if(!d.obs)delete d.obs;
     d.tipo=tab;d.status="aberto";d.criado=Date.now();
     salvar(d);e.target.reset();tg();e.target.numero.focus();};
 }
@@ -191,7 +176,7 @@ function renderList(){
   const showRet=tab==="retirada"||tab==="carro";
   const head=`<th>Pedido/NF</th><th>Vendedor</th><th>Cliente</th><th>Data do pedido</th>${showEnd?"":"<th>Horário da retirada</th>"}<th>Volumes</th>`+
     (view?`<th>Origem</th><th>Endereço / Retirou</th>`:showEnd?`<th>Endereço</th>`:`<th>Quem retirou</th>`)+
-    `<th>Pagamento</th><th>Valor</th><th>Pago?</th>`+(tab==="fin"?`<th>Finalizado em</th>`:tab==="conferir"?`<th>Saída em</th>`:"")+`<th>Observação</th><th>Ações</th>`;
+    `<th>Pagamento</th><th>Valor</th><th>Pago?</th>`+(tab==="fin"?`<th>Finalizado em</th>`:tab==="conferir"?`<th>Saída em</th>`:"")+`<th>Ações</th>`;
   const body=rows.map(p=>{
     const isEnd=p.tipo==="entrega"||p.tipo==="crato";
     const mid=view?`<td>${esc(TABS[p.tipo].nome)}</td><td>${isEnd?mapa(p.endereco,p.cidade):esc(p.quem)}</td>`
@@ -201,10 +186,8 @@ function renderList(){
       :`<button class="s f" data-a="fin" data-i="${p.id}">Finalizar</button><button class="s" data-a="edit" data-i="${p.id}">Editar</button><button class="s" data-a="del" data-i="${p.id}">Excluir</button>`;
     return `<tr><td><b>${esc(p.numero)}</b></td><td>${esc(p.vendedor)}</td><td>${esc(p.cliente)}</td><td>${fmtData(p.data)}</td>${showEnd?"":`<td>${esc(p.horario)}</td>`}<td>${esc(p.volumes)}</td>${mid}
       <td>${esc(p.pagamento)}</td><td>${p.valor!=null?BRL(p.valor):""}</td><td><button class="pg ${p.pago==="Sim"?"y":"n"}" data-a="pago" data-i="${p.id}" title="Clique para alternar">${p.pago==="Sim"?"Sim":"Não"}</button></td>
-      ${tab==="fin"?`<td>${dataf(p.finalizadoEm)}</td>`:tab==="conferir"?`<td>${dataf(p.saidaEm)}</td>`:""}<td>${esc(p.obs)}</td><td>${acoes}</td></tr>`}).join("");
+      ${tab==="fin"?`<td>${dataf(p.finalizadoEm)}</td>`:tab==="conferir"?`<td>${dataf(p.saidaEm)}</td>`:""}<td>${acoes}</td></tr>`}).join("");
   $("#list").innerHTML=`<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
-  const ths=[...document.querySelectorAll("#list th")].map(t=>t.textContent);
-  document.querySelectorAll("#list tbody tr").forEach(tr=>[...tr.children].forEach((td,i)=>{td.dataset.l=ths[i]||"";if(ths[i]==="Observação")td.classList.add("wr")}));
   document.querySelectorAll("[data-a]").forEach(b=>b.onclick=()=>acao(b.dataset.a,b.dataset.i));
 }
 function editar(p){
@@ -222,7 +205,6 @@ function editar(p){
   <label>Forma de pagamento<select name="pagamento">${PAG.map(x=>`<option ${x===p.pagamento?"selected":""}>${x}</option>`).join("")}</select></label>
   <label id="eV">Valor para conferir (R$)<input name="valor" type="number" min="0.01" step="0.01" inputmode="decimal" value="${p.valor!=null?esc(p.valor):""}"></label>
   <label>Já pagou?<select name="pago"><option ${p.pago!=="Sim"?"selected":""}>Não</option><option ${p.pago==="Sim"?"selected":""}>Sim</option></select></label>
-  <label style="grid-column:1/-1">Observação (opcional)<input name="obs" maxlength="300" value="${esc(p.obs)}"></label>
   <div style="grid-column:1/-1;display:flex;gap:8px;justify-content:flex-end"><button type="button" class="s" id="eC">Cancelar</button><button class="b" type="submit">Salvar alterações</button></div>`;
   const tg=()=>{
     const t=f.tipo.value,end=t==="entrega"||t==="crato";
@@ -235,7 +217,7 @@ function editar(p){
   f.onsubmit=e=>{e.preventDefault();
     const d=Object.fromEntries(new FormData(f).entries());
     const n={...p,...d};
-    ["valor","quem","horario","data","cidade","obs"].forEach(k=>{if(!d[k])delete n[k]});
+    ["valor","quem","horario","data","cidade"].forEach(k=>{if(!d[k])delete n[k]});
     if(d.valor)n.valor=parseFloat(d.valor);
     dlg.close();
     if(n.tipo!==p.tipo&&n.status==="aberto")tab=n.tipo;
