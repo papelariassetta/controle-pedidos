@@ -47,6 +47,7 @@ footer .logo{height:48px;opacity:.9;margin-left:auto}
 dialog{background:var(--card);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:0;width:min(680px,95vw)}
 dialog::backdrop{background:rgba(0,0,0,.55)}
 dialog form{border:0;margin:0}
+a{color:var(--pri);text-decoration:none}a:hover{text-decoration:underline}
 </style>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
@@ -85,6 +86,7 @@ let db=null,col=null,pedidos=[],tab="retirada",busca="";
 const $=s=>document.querySelector(s);
 const naAba=(p,k)=>k==="fin"?p.status==="finalizado":k==="conferir"?p.status==="conferir":(p.tipo===k&&p.status!=="finalizado"&&p.status!=="conferir");
 const BRL=v=>Number(v).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+const mapa=a=>a?`<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a)}" target="_blank" rel="noopener">📍 ${esc(a)}</a>`:"";
 const precisaConferir=p=>/pix|boleto/i.test(p.pagamento||"");
 const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const hora=()=>new Date().toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
@@ -174,8 +176,8 @@ function renderList(){
     `<th>Pagamento</th><th>Valor</th><th>Pago?</th>`+(tab==="fin"?`<th>Finalizado em</th>`:tab==="conferir"?`<th>Saída em</th>`:"")+`<th>Ações</th>`;
   const body=rows.map(p=>{
     const isEnd=p.tipo==="entrega"||p.tipo==="crato";
-    const mid=view?`<td>${esc(TABS[p.tipo].nome)}</td><td>${esc(isEnd?p.endereco:p.quem)}</td>`
-      :showEnd?`<td>${esc(p.endereco)}</td>`:`<td>${esc(p.quem)}</td>`;
+    const mid=view?`<td>${esc(TABS[p.tipo].nome)}</td><td>${isEnd?mapa(p.endereco):esc(p.quem)}</td>`
+      :showEnd?`<td>${mapa(p.endereco)}</td>`:`<td>${esc(p.quem)}</td>`;
     const acoes=tab==="fin"?`<button class="s" data-a="reabrir" data-i="${p.id}">Reabrir</button><button class="s" data-a="edit" data-i="${p.id}">Editar</button><button class="s" data-a="del" data-i="${p.id}">Excluir</button>`
       :tab==="conferir"?`<button class="s f" data-a="conf" data-i="${p.id}">Pagamento conferido</button><button class="s" data-a="voltar" data-i="${p.id}">Voltar</button><button class="s" data-a="edit" data-i="${p.id}">Editar</button><button class="s" data-a="del" data-i="${p.id}">Excluir</button>`
       :`<button class="s f" data-a="fin" data-i="${p.id}">Finalizar</button><button class="s" data-a="edit" data-i="${p.id}">Editar</button><button class="s" data-a="del" data-i="${p.id}">Excluir</button>`;
