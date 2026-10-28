@@ -25,8 +25,8 @@ button.s{font:inherit;font-size:13px;border:1px solid var(--bd);border-radius:6p
 button.f{background:var(--ok);color:#fff;border-color:var(--ok)}
 .wrap{overflow-x:auto;background:var(--card);border:1px solid var(--bd);border-radius:10px}
 table{border-collapse:collapse;width:100%}
-td,th{overflow-wrap:anywhere;word-break:break-word}
-.nw{white-space:nowrap;overflow-wrap:normal;word-break:normal}
+td,th{white-space:nowrap}
+td.wr{white-space:normal;overflow-wrap:normal;word-break:normal;min-width:180px}
 th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--bd);font-size:14px;vertical-align:middle}
 th{font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.03em}
 tr:last-child td{border-bottom:0}
@@ -52,7 +52,7 @@ dialog form{border:0;margin:0}
 a{color:var(--pri);text-decoration:none}a:hover{text-decoration:underline}
 @media (max-width:1100px){th,td{padding:7px 6px;font-size:13px}}
 @media (max-width:760px){
- .nw{white-space:normal;overflow-wrap:anywhere}
+ td,th{white-space:normal;overflow-wrap:normal;word-break:normal}
  table,tbody,tr,td{display:block;width:100%}
  thead{display:none}
  tr{border-bottom:2px solid var(--bd);padding:8px 0}
@@ -203,10 +203,8 @@ function renderList(){
       <td>${esc(p.pagamento)}</td><td>${p.valor!=null?BRL(p.valor):""}</td><td><button class="pg ${p.pago==="Sim"?"y":"n"}" data-a="pago" data-i="${p.id}" title="Clique para alternar">${p.pago==="Sim"?"Sim":"Não"}</button></td>
       ${tab==="fin"?`<td>${dataf(p.finalizadoEm)}</td>`:tab==="conferir"?`<td>${dataf(p.saidaEm)}</td>`:""}<td>${esc(p.obs)}</td><td>${acoes}</td></tr>`}).join("");
   $("#list").innerHTML=`<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
-  const NW=["Pedido/NF","Vendedor","Cliente","Data do pedido","Volumes","Pagamento","Valor","Pago?","Finalizado em"];
-  const ths=[...document.querySelectorAll("#list th")];
-  ths.forEach(t=>{if(NW.includes(t.textContent))t.classList.add("nw")});
-  document.querySelectorAll("#list tbody tr").forEach(tr=>[...tr.children].forEach((td,i)=>{const l=ths[i]?ths[i].textContent:"";td.dataset.l=l;if(NW.includes(l))td.classList.add("nw")}));
+  const ths=[...document.querySelectorAll("#list th")].map(t=>t.textContent);
+  document.querySelectorAll("#list tbody tr").forEach(tr=>[...tr.children].forEach((td,i)=>{td.dataset.l=ths[i]||"";if(ths[i]==="Observação")td.classList.add("wr")}));
   document.querySelectorAll("[data-a]").forEach(b=>b.onclick=()=>acao(b.dataset.a,b.dataset.i));
 }
 function editar(p){
