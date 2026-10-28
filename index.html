@@ -24,7 +24,8 @@ button.b{font:inherit;font-weight:600;border:0;border-radius:6px;padding:9px 14p
 button.s{font:inherit;font-size:13px;border:1px solid var(--bd);border-radius:6px;padding:5px 9px;background:var(--card);color:var(--tx);cursor:pointer;margin-right:4px}
 button.f{background:var(--ok);color:#fff;border-color:var(--ok)}
 .wrap{overflow-x:auto;background:var(--card);border:1px solid var(--bd);border-radius:10px}
-table{border-collapse:collapse;width:100%;min-width:760px}
+table{border-collapse:collapse;width:100%}
+td,th{overflow-wrap:anywhere;word-break:break-word}
 th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--bd);font-size:14px;vertical-align:middle}
 th{font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.03em}
 tr:last-child td{border-bottom:0}
@@ -48,6 +49,16 @@ dialog{background:var(--card);color:var(--tx);border:1px solid var(--bd);border-
 dialog::backdrop{background:rgba(0,0,0,.55)}
 dialog form{border:0;margin:0}
 a{color:var(--pri);text-decoration:none}a:hover{text-decoration:underline}
+@media (max-width:1100px){th,td{padding:7px 6px;font-size:13px}}
+@media (max-width:760px){
+ table,tbody,tr,td{display:block;width:100%}
+ thead{display:none}
+ tr{border-bottom:2px solid var(--bd);padding:8px 0}
+ td{display:flex;justify-content:space-between;gap:12px;border:0;padding:5px 12px;text-align:right;font-size:14px}
+ td::before{content:attr(data-l);color:var(--mut);font-size:12px;text-transform:uppercase;text-align:left;flex:none}
+ td:last-child{justify-content:flex-end;flex-wrap:wrap}
+ td:last-child::before{display:none}
+}
 </style>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
@@ -190,6 +201,8 @@ function renderList(){
       <td>${esc(p.pagamento)}</td><td>${p.valor!=null?BRL(p.valor):""}</td><td><button class="pg ${p.pago==="Sim"?"y":"n"}" data-a="pago" data-i="${p.id}" title="Clique para alternar">${p.pago==="Sim"?"Sim":"Não"}</button></td>
       ${tab==="fin"?`<td>${dataf(p.finalizadoEm)}</td>`:tab==="conferir"?`<td>${dataf(p.saidaEm)}</td>`:""}<td>${esc(p.obs)}</td><td>${acoes}</td></tr>`}).join("");
   $("#list").innerHTML=`<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+  const ths=[...document.querySelectorAll("#list th")].map(t=>t.textContent);
+  document.querySelectorAll("#list tbody tr").forEach(tr=>[...tr.children].forEach((td,i)=>td.dataset.l=ths[i]||""));
   document.querySelectorAll("[data-a]").forEach(b=>b.onclick=()=>acao(b.dataset.a,b.dataset.i));
 }
 function editar(p){
