@@ -83,7 +83,12 @@ const TABS={
  fin:{nome:"Finalizados"}
 };
 const PAG=["Dinheiro","Pix","Transferência bancária","Cartão de crédito","Cartão de débito","Boleto","Crediário","Cheque","Na entrega"];
-let db=null,col=null,pedidos=[],tab="retirada",busca="";
+let db=null,col=null,pedidos=[],tab="retirada",busca="",papel=null;
+/* Perfis de acesso (por e-mail). As mesmas listas precisam estar nas regras do Firestore. */
+const ADMINS=["admin@setta.app","maycon@setta.app","auri@setta.app"];
+const RESTRITOS=["spectro@setta.app","tarciano@setta.app"];
+const ENTREGADORES=["entregador@setta.app"];
+const ABAS={admin:["retirada","entrega","carro","crato","conferir","fin"],restrito:["retirada","entrega","carro","crato"],entregador:["entrega","carro"]};
 const $=s=>document.querySelector(s);
 const naAba=(p,k)=>k==="fin"?p.status==="finalizado":k==="conferir"?p.status==="conferir":(p.tipo===k&&p.status!=="finalizado"&&p.status!=="conferir");
 const BRL=v=>Number(v).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
@@ -110,13 +115,21 @@ function iniciar(){
   const auth=firebase.auth();col=firebase.firestore().collection("pedidos");
   auth.onAuthStateChanged(u=>{
     if(u){
+      const em=(u.email||"").toLowerCase();
+      papel=ADMINS.includes(em)?"admin":RESTRITOS.includes(em)?"restrito":ENTREGADORES.includes(em)?"entregador":null;
+      if(!papel){$("#lerr").textContent="Este usuário não tem permissão de acesso.";auth.signOut();return}
+      if(!ABAS[papel].includes(tab))tab=ABAS[papel][0];
+      lastTab=null;
       $("#login").hidden=true;$("#app").hidden=false;
-      unsub=col.onSnapshot(s=>{pedidos=s.docs.map(d=>({id:d.id,...d.data()}));render()},
+      let q=col;
+      if(papel==="restrito")q=col.where("status","==","aberto");
+      if(papel==="entregador")q=col.where("tipo","in",["entrega","carro"]).where("status","==","aberto");
+      unsub=q.onSnapshot(s=>{pedidos=s.docs.map(d=>({id:d.id,...d.data()}));render()},
         e=>{$("#note").textContent="Erro ao carregar pedidos: "+e.message});
-      $("#note").textContent="Conectado: todos os computadores logados veem os mesmos pedidos.";
+      $("#note").textContent="Conectado como "+em+".";
     }else{
       if(unsub){unsub();unsub=null}
-      pedidos=[];$("#login").hidden=false;$("#app").hidden=true;
+      pedidos=[];papel=null;$("#login").hidden=false;$("#app").hidden=true;
     }
   });
   $("#lf").onsubmit=async e=>{e.preventDefault();$("#lerr").textContent="";
@@ -135,14 +148,14 @@ async function apagar(p){
 }
 
 function renderTabs(){
-  $("#tabs").innerHTML=Object.entries(TABS).map(([k,t])=>{
+  $("#tabs").innerHTML=Object.entries(TABS).filter(([k])=>ABAS[papel].includes(k)).map(([k,t])=>{
     const n=pedidos.filter(p=>naAba(p,k)).length;
     return `<button class="tab ${k===tab?"on":""}" data-t="${k}">${t.nome}<b>${n}</b></button>`}).join("");
   document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{tab=b.dataset.t;render()});
 }
 function renderForm(){
   const t=TABS[tab];
-  if(tab==="fin"||tab==="conferir"){$("#formBox").innerHTML="";return}
+  if(tab==="fin"||tab==="conferir"||papel==="entregador"){$("#formBox").innerHTML="";return}
   const pg=`<label>Forma de pagamento<select name="pagamento">${PAG.map(x=>`<option>${x}</option>`).join("")}</select></label>
    <label id="vl" hidden>Valor para conferir (R$)<input name="valor" type="number" min="0.01" step="0.01" inputmode="decimal"></label>
    <label>Já pagou?<select name="pago"><option>Não</option><option>Sim</option></select></label>`;
@@ -184,11 +197,13 @@ function renderList(){
     const isEnd=p.tipo==="entrega"||p.tipo==="crato";
     const mid=view?`<td>${esc(TABS[p.tipo].nome)}</td><td>${isEnd?mapa(p.endereco,p.cidade):esc(p.quem)}</td>`
       :showEnd?`<td>${mapa(p.endereco,p.cidade)}</td>`:`<td>${esc(p.quem)}</td>`;
-    const acoes=tab==="fin"?`<button class="s" data-a="reabrir" data-i="${p.id}">Reabrir</button><button class="s" data-a="edit" data-i="${p.id}">Editar</button><button class="s" data-a="del" data-i="${p.id}">Excluir</button>`
+    let acoes=tab==="fin"?`<button class="s" data-a="reabrir" data-i="${p.id}">Reabrir</button><button class="s" data-a="edit" data-i="${p.id}">Editar</button><button class="s" data-a="del" data-i="${p.id}">Excluir</button>`
       :tab==="conferir"?`<button class="s f" data-a="conf" data-i="${p.id}">Pagamento conferido</button><button class="s" data-a="voltar" data-i="${p.id}">Voltar</button><button class="s" data-a="edit" data-i="${p.id}">Editar</button><button class="s" data-a="del" data-i="${p.id}">Excluir</button>`
       :`<button class="s f" data-a="fin" data-i="${p.id}">Finalizar</button><button class="s" data-a="edit" data-i="${p.id}">Editar</button><button class="s" data-a="del" data-i="${p.id}">Excluir</button>`;
+    if(papel==="entregador")acoes=`<button class="s" data-a="obs" data-i="${p.id}">Observação</button><button class="s f" data-a="fin" data-i="${p.id}">Finalizar</button>`;
+    else if(papel==="restrito")acoes=acoes.replace(/<button class="s" data-a="del"[^>]*>Excluir<\/button>/,"");
     return `<tr><td><b>${esc(p.numero)}</b></td><td>${esc(p.vendedor)}</td><td>${esc(p.cliente)}</td><td>${fmtData(p.data)}</td>${showEnd?"":`<td>${esc(p.horario)}</td>`}<td>${esc(p.volumes)}</td>${mid}
-      <td>${esc(p.pagamento)}</td><td>${p.valor!=null?BRL(p.valor):""}</td><td><button class="pg ${p.pago==="Sim"?"y":"n"}" data-a="pago" data-i="${p.id}" title="Clique para alternar">${p.pago==="Sim"?"Sim":"Não"}</button></td>
+      <td>${esc(p.pagamento)}</td><td>${p.valor!=null?BRL(p.valor):""}</td><td><button class="pg ${p.pago==="Sim"?"y":"n"}" ${papel==="entregador"?"disabled":`data-a="pago" data-i="${p.id}" title="Clique para alternar"`}>${p.pago==="Sim"?"Sim":"Não"}</button></td>
       ${tab==="fin"?`<td>${dataf(p.finalizadoEm)}</td>`:tab==="conferir"?`<td>${dataf(p.saidaEm)}</td>`:""}<td>${esc(p.obs)}</td><td>${acoes}</td></tr>`}).join("");
   $("#list").innerHTML=`<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
   document.querySelectorAll("[data-a]").forEach(b=>b.onclick=()=>acao(b.dataset.a,b.dataset.i));
@@ -232,6 +247,7 @@ function editar(p){
 function acao(a,id){
   const p=pedidos.find(x=>x.id===id);if(!p)return;
   if(a==="edit")return editar(p);
+  if(a==="obs"){const n=prompt("Observação do pedido "+p.numero+":",p.obs||"");if(n===null)return;if(n.trim())p.obs=n.trim();else delete p.obs;return salvar(p)}
   if(a==="del")return apagar(p);
   if(a==="pago"){p.pago=p.pago==="Sim"?"Não":"Sim";return salvar(p)}
   if(a==="reabrir"){p.status="aberto";delete p.finalizadoEm;delete p.saidaEm;delete p.horario;delete p.quem;return salvar(p)}
@@ -252,6 +268,7 @@ function acao(a,id){
   }
 }
 function render(){
+  if(!papel)return;
   renderTabs();
   const ativo=document.activeElement;
   if(!ativo||ativo.tagName!=="INPUT"||ativo.id==="q")renderForm_once();
