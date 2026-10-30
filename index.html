@@ -171,7 +171,8 @@ function renderList(){
   const t=TABS[tab];
   let rows=pedidos.filter(p=>naAba(p,tab));
   if(busca){const b=busca.toLowerCase();rows=rows.filter(p=>[p.numero,p.cliente,p.vendedor,p.quem,p.endereco].join(" ").toLowerCase().includes(b))}
-  rows.sort((a,b)=>String(b.numero||"").localeCompare(String(a.numero||""),"pt-BR",{numeric:true})||(b.criado||0)-(a.criado||0));
+  const porNum=(a,b)=>String(b.numero||"").localeCompare(String(a.numero||""),"pt-BR",{numeric:true})||(b.criado||0)-(a.criado||0);
+  rows.sort(tab==="fin"?(a,b)=>(b.finalizadoEm||0)-(a.finalizadoEm||0)||porNum(a,b):porNum);
   if(!rows.length){$("#list").innerHTML=`<div class="empty">Nenhum pedido ${tab==="fin"?"finalizado":tab==="conferir"?"para conferir":"em aberto"} aqui.</div>`;return}
   const view=tab==="fin"||tab==="conferir";
   const showEnd=tab==="entrega"||tab==="crato";
