@@ -82,13 +82,13 @@ const TABS={
  conferir:{nome:"À conferir"},
  fin:{nome:"Finalizados"}
 };
-const PAG=["Dinheiro","Pix","Cartão de crédito","Cartão de débito","Boleto","Crediário","Cheque","Na entrega"];
+const PAG=["Dinheiro","Pix","Transferência bancária","Cartão de crédito","Cartão de débito","Boleto","Crediário","Cheque","Na entrega"];
 let db=null,col=null,pedidos=[],tab="retirada",busca="";
 const $=s=>document.querySelector(s);
 const naAba=(p,k)=>k==="fin"?p.status==="finalizado":k==="conferir"?p.status==="conferir":(p.tipo===k&&p.status!=="finalizado"&&p.status!=="conferir");
 const BRL=v=>Number(v).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
 const mapa=(a,c)=>a?`<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a+(c?", "+c+", CE":""))}" target="_blank" rel="noopener">📍 ${esc(a)}${c?" — "+esc(c):""}</a>`:"";
-const precisaConferir=p=>/pix|boleto/i.test(p.pagamento||"");
+const precisaConferir=p=>/pix|boleto|transfer/i.test(p.pagamento||"");
 const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const hora=()=>new Date().toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
 const fmtData=s=>s?s.split("-").reverse().join("/"):"";
@@ -158,7 +158,7 @@ function renderForm(){
    <label>Observação (opcional)<input name="obs" maxlength="300"></label>
    <button class="b" type="submit">+ Adicionar em ${t.nome}</button></form>`;
   const sel=$("#f").pagamento,vl=$("#vl"),vin=$("#f").valor;
-  const tg=()=>{const on=/pix|boleto/i.test(sel.value);vl.hidden=!on;vin.required=on;if(!on)vin.value=""};
+  const tg=()=>{const on=/pix|boleto|transfer/i.test(sel.value);vl.hidden=!on;vin.required=on;if(!on)vin.value=""};
   sel.onchange=tg;tg();
   $("#f").onsubmit=e=>{e.preventDefault();
     const d=Object.fromEntries(new FormData(e.target).entries());
@@ -213,7 +213,7 @@ function editar(p){
     const t=f.tipo.value,end=t==="entrega"||t==="crato";
     $("#eEnd").hidden=!end;$("#eCid").hidden=!end;f.endereco.required=end;
     const sq=!end&&p.status!=="aberto";$("#eQ").hidden=!sq;$("#eH").hidden=!sq;
-    const pv=/pix|boleto/i.test(f.pagamento.value);$("#eV").hidden=!pv;f.valor.required=pv;
+    const pv=/pix|boleto|transfer/i.test(f.pagamento.value);$("#eV").hidden=!pv;f.valor.required=pv;
   };
   f.tipo.onchange=tg;f.pagamento.onchange=tg;tg();
   $("#eC").onclick=()=>dlg.close();
@@ -236,7 +236,8 @@ function acao(a,id){
   if(a==="reabrir"){p.status="aberto";delete p.finalizadoEm;delete p.saidaEm;delete p.horario;delete p.quem;return salvar(p)}
   if(a==="voltar"){p.status="aberto";delete p.saidaEm;delete p.horario;delete p.quem;return salvar(p)}
   if(a==="conf"){
-    if(!confirm("Confirma que o "+(/boleto/i.test(p.pagamento)?"boleto":"PIX")+(p.valor!=null?" de "+BRL(p.valor):"")+" do pedido "+p.numero+" foi pago?"))return;
+    const tr=/transfer/i.test(p.pagamento),nome=/boleto/i.test(p.pagamento)?"o boleto":tr?"a transferência":"o PIX";
+    if(!confirm("Confirma que "+nome+(p.valor!=null?" de "+BRL(p.valor):"")+" do pedido "+p.numero+" foi "+(tr?"paga":"pago")+"?"))return;
     p.pago="Sim";p.status="finalizado";p.finalizadoEm=Date.now();return salvar(p)}
   if(a==="fin"){
     if(!precisaConferir(p)&&p.pago!=="Sim"&&!confirm("O pedido "+p.numero+" ainda NÃO está pago. Finalizar mesmo assim?"))return;
