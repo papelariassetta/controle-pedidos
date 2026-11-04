@@ -88,7 +88,7 @@ let db=null,col=null,pedidos=[],tab="retirada",busca="",papel=null;
 const ADMINS=["admin@setta.app","maycon@setta.app","auri@setta.app"];
 const RESTRITOS=["spectro@setta.app","tarciano@setta.app"];
 const ENTREGADORES=["entregador@setta.app"];
-const ABAS={admin:["retirada","entrega","carro","crato","conferir","fin"],restrito:["retirada","entrega","carro","crato"],entregador:["entrega","carro"]};
+const ABAS={admin:["retirada","entrega","carro","crato","conferir","fin"],restrito:["retirada","entrega","carro","crato"],entregador:["entrega","crato"]};
 const $=s=>document.querySelector(s);
 const naAba=(p,k)=>k==="fin"?p.status==="finalizado":k==="conferir"?p.status==="conferir":(p.tipo===k&&p.status!=="finalizado"&&p.status!=="conferir");
 const BRL=v=>Number(v).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
@@ -125,7 +125,7 @@ function iniciar(){
       $("#login").hidden=true;$("#app").hidden=false;
       let q=col;
       if(papel==="restrito")q=col.where("status","==","aberto");
-      if(papel==="entregador")q=col.where("tipo","in",["entrega","carro"]).where("status","==","aberto");
+      if(papel==="entregador")q=col.where("tipo","in",["entrega","crato"]).where("status","==","aberto");
       unsub=q.onSnapshot(s=>{pedidos=s.docs.map(d=>({id:d.id,...d.data()}));render()},
         e=>{$("#note").textContent="Erro ao carregar pedidos: "+e.message});
       $("#note").textContent="Conectado como "+em+".";
