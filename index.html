@@ -206,7 +206,7 @@ function renderList(){
     if(papel==="entregador")acoes=`<button class="s" data-a="obs" data-i="${p.id}">Observação</button><button class="s f" data-a="fin" data-i="${p.id}">Finalizar</button>`;
     else if(papel==="restrito")acoes=acoes.replace(/<button class="s" data-a="del"[^>]*>Excluir<\/button>/,"");
     return `<tr><td><b>${esc(p.numero)}</b></td><td>${esc(p.vendedor)}</td><td>${esc(p.cliente)}</td><td>${fmtData(p.data)}</td>${showEnd?"":`<td>${esc(p.horario)}</td>`}<td>${esc(p.volumes)}</td>${mid}
-      <td>${esc(p.pagamento)}</td><td>${p.valor!=null?BRL(p.valor):""}</td><td><button class="pg ${p.pago==="Sim"?"y":"n"}" ${papel==="entregador"?"disabled":`data-a="pago" data-i="${p.id}" title="Clique para alternar"`}>${p.pago==="Sim"?"Sim":"Não"}</button></td>
+      <td>${esc(p.pagamento)}</td><td>${p.valor!=null?BRL(p.valor):""}</td><td><button class="pg ${p.pago==="Sim"?"y":"n"}" data-a="pago" data-i="${p.id}" title="Clique para alternar">${p.pago==="Sim"?"Sim":"Não"}</button></td>
       ${tab==="fin"?`<td>${dataf(p.finalizadoEm)}</td>`:tab==="conferir"?`<td>${dataf(p.saidaEm)}</td>`:""}<td>${esc(p.obs)}</td><td>${acoes}</td></tr>`}).join("");
   $("#list").innerHTML=`<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
   document.querySelectorAll("[data-a]").forEach(b=>b.onclick=()=>acao(b.dataset.a,b.dataset.i));
