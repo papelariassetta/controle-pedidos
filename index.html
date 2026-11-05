@@ -80,15 +80,16 @@ const TABS={
  carro:{nome:"Carro de Linha",ret:true},
  crato:{nome:"Crato",end:true},
  conferir:{nome:"À conferir"},
- fin:{nome:"Finalizados"}
+ fin:{nome:"Finalizados"},
+ setta:{nome:"Aguardando Entrega"}
 };
 const PAG=["Dinheiro","Pix","Transferência bancária","Cartão de crédito","Cartão de débito","Boleto","Crediário","Cheque","Na entrega"];
-let db=null,col=null,pedidos=[],tab="retirada",busca="",papel=null;
+let db=null,col=null,colS=null,pedidos=[],pedidosSetta=[],tab="retirada",busca="",papel=null;
 /* Perfis de acesso (por e-mail). As mesmas listas precisam estar nas regras do Firestore. */
 const ADMINS=["admin@setta.app","maycon@setta.app","auri@setta.app"];
 const RESTRITOS=["spectro@setta.app","tarciano@setta.app"];
 const ENTREGADORES=["entregador@setta.app"];
-const ABAS={admin:["retirada","entrega","carro","crato","conferir","fin"],restrito:["retirada","entrega","carro","crato"],entregador:["entrega","crato"]};
+const ABAS={admin:["retirada","entrega","carro","crato","conferir","fin"],restrito:["retirada","entrega","carro","crato"],entregador:["entrega","crato","setta"]};
 const $=s=>document.querySelector(s);
 const naAba=(p,k)=>k==="fin"?p.status==="finalizado":k==="conferir"?p.status==="conferir":(p.tipo===k&&p.status!=="finalizado"&&p.status!=="conferir");
 const BRL=v=>Number(v).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
@@ -108,12 +109,12 @@ const firebaseConfig={
   messagingSenderId:"474522616645",
   appId:"1:474522616645:web:d0bc72831b9c2ca3df342c"
 };
-let unsub=null;
+let unsub=null,unsubS=null;
 function iniciar(){
   if(firebaseConfig.apiKey==="COLE_AQUI"){$("#lerr").textContent="Configure o firebaseConfig no início do script.";return}
   /* App com nome próprio: a sessão deste sistema não se mistura com a de outros sistemas no mesmo endereço (github.io) */
   const app=firebase.initializeApp(firebaseConfig,"retirada");
-  const auth=app.auth();col=app.firestore().collection("pedidos");
+  const auth=app.auth();col=app.firestore().collection("pedidos");colS=app.firestore().collection("pedidos_setta");
   auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(()=>{});
   auth.onAuthStateChanged(u=>{
     if(u){
@@ -128,10 +129,13 @@ function iniciar(){
       if(papel==="entregador")q=col.where("tipo","in",["entrega","crato"]).where("status","==","aberto");
       unsub=q.onSnapshot(s=>{pedidos=s.docs.map(d=>({id:d.id,...d.data()}));render()},
         e=>{$("#note").textContent="Erro ao carregar pedidos: "+e.message});
+      if(unsubS){unsubS();unsubS=null}
+      if(papel==="entregador")unsubS=colS.where("status","==","aguardando").onSnapshot(s=>{pedidosSetta=s.docs.map(d=>({id:d.id,...d.data()}));render()},
+        e=>{$("#note").textContent="Erro ao carregar Aguardando Entrega: "+e.message});
       $("#note").textContent="Conectado como "+em+".";
     }else{
       if(unsub){unsub();unsub=null}
-      pedidos=[];papel=null;$("#login").hidden=false;$("#app").hidden=true;
+      if(unsubS){unsubS();unsubS=null}pedidosSetta=[];pedidos=[];papel=null;$("#login").hidden=false;$("#app").hidden=true;
     }
   });
   $("#lf").onsubmit=async e=>{e.preventDefault();$("#lerr").textContent="";
@@ -152,7 +156,7 @@ async function apagar(p){
 
 function renderTabs(){
   $("#tabs").innerHTML=Object.entries(TABS).filter(([k])=>ABAS[papel].includes(k)).map(([k,t])=>{
-    const n=pedidos.filter(p=>naAba(p,k)).length;
+    const n=k==="setta"?pedidosSetta.length:pedidos.filter(p=>naAba(p,k)).length;
     return `<button class="tab ${k===tab?"on":""}" data-t="${k}">${t.nome}<b>${n}</b></button>`}).join("");
   document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{tab=b.dataset.t;render()});
 }
@@ -183,7 +187,15 @@ function renderForm(){
     d.tipo=tab;d.status="aberto";d.criado=Date.now();
     salvar(d);e.target.reset();tg();e.target.elements.numero.focus();};
 }
+function renderSetta(){
+  let rows=pedidosSetta.slice();
+  if(busca){const b=busca.toLowerCase();rows=rows.filter(p=>[p.numero,p.filial,p.separador,p.conferiu,p.embalou].join(" ").toLowerCase().includes(b))}
+  rows.sort((a,b)=>(b.atualizado||0)-(a.atualizado||0));
+  if(!rows.length){$("#list").innerHTML='<div class="empty">Nenhum pedido aguardando entrega.</div>';return}
+  $("#list").innerHTML='<table><thead><tr><th>Pedido</th><th>Filial</th><th>Volumes</th><th>Separador</th><th>Conferido por</th><th>Embalado por</th><th>Atualizado em</th></tr></thead><tbody>'+rows.map(p=>'<tr><td><b>'+esc(p.numero)+'</b></td><td>'+esc(p.filial)+'</td><td>'+esc(p.volumes)+'</td><td>'+esc(p.separador)+'</td><td>'+esc(p.conferiu)+'</td><td>'+esc(p.embalou)+'</td><td>'+dataf(p.atualizado)+'</td></tr>').join("")+'</tbody></table>';
+}
 function renderList(){
+  if(tab==="setta")return renderSetta();
   const t=TABS[tab];
   let rows=pedidos.filter(p=>naAba(p,tab));
   if(busca){const b=busca.toLowerCase();rows=rows.filter(p=>[p.numero,p.cliente,p.vendedor,p.quem,p.endereco].join(" ").toLowerCase().includes(b))}
