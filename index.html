@@ -89,11 +89,12 @@ let db=null,col=null,colS=null,pedidos=[],pedidosSetta=[],tab="retirada",busca="
 const ADMINS=["admin@setta.app","maycon@setta.app","auri@setta.app"];
 const RESTRITOS=["spectro@setta.app","tarciano@setta.app"];
 const ENTREGADORES=["entregador@setta.app"];
-const ABAS={admin:["retirada","entrega","carro","crato","conferir","fin"],restrito:["retirada","entrega","carro","crato"],entregador:["entrega","crato","setta"]};
+const ABAS={admin:["retirada","entrega","carro","crato","conferir","fin"],restrito:["retirada","entrega","carro","crato"],entregador:["entrega","carro","crato","setta"]};
 const $=s=>document.querySelector(s);
 const naAba=(p,k)=>k==="fin"?p.status==="finalizado":k==="conferir"?p.status==="conferir":(p.tipo===k&&p.status!=="finalizado"&&p.status!=="conferir");
 const BRL=v=>Number(v).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
 const mapa=(a,c)=>a?`<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a+(c?", "+c+", CE":""))}" target="_blank" rel="noopener">📍 ${esc(a)}${c?" — "+esc(c):""}</a>`:"";
+const infoCarro=p=>p.entregarCarro?`${mapa(p.endereco,p.cidade)}<br><small>Motorista: ${esc(p.motorista)}</small>`:"";
 const precisaConferir=p=>/pix|boleto|transfer/i.test(p.pagamento||"");
 const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const hora=()=>new Date().toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
@@ -109,7 +110,7 @@ const firebaseConfig={
   messagingSenderId:"474522616645",
   appId:"1:474522616645:web:d0bc72831b9c2ca3df342c"
 };
-let unsub=null,unsubS=null;
+let unsub=null,unsub2=null,unsubS=null;
 function iniciar(){
   if(firebaseConfig.apiKey==="COLE_AQUI"){$("#lerr").textContent="Configure o firebaseConfig no início do script.";return}
   /* App com nome próprio: a sessão deste sistema não se mistura com a de outros sistemas no mesmo endereço (github.io) */
@@ -124,17 +125,27 @@ function iniciar(){
       if(!ABAS[papel].includes(tab))tab=ABAS[papel][0];
       lastTab=null;
       $("#login").hidden=true;$("#app").hidden=false;
-      let q=col;
-      if(papel==="restrito")q=col.where("status","==","aberto");
-      if(papel==="entregador")q=col.where("tipo","in",["entrega","crato"]).where("status","==","aberto");
-      unsub=q.onSnapshot(s=>{pedidos=s.docs.map(d=>({id:d.id,...d.data()}));render()},
-        e=>{$("#note").textContent="Erro ao carregar pedidos: "+e.message});
+      if(unsub){unsub();unsub=null}
+      if(unsub2){unsub2();unsub2=null}
+      const erro=e=>{$("#note").textContent="Erro ao carregar pedidos: "+e.message};
+      if(papel==="entregador"){
+        /* Entrega e Crato + pedidos de Carro de Linha marcados para entregar ao carro */
+        let pa=[],pb=[];const mix=()=>{pedidos=pa.concat(pb);render()};
+        unsub=col.where("tipo","in",["entrega","crato"]).where("status","==","aberto")
+          .onSnapshot(s=>{pa=s.docs.map(d=>({id:d.id,...d.data()}));mix()},erro);
+        unsub2=col.where("tipo","==","carro").where("entregarCarro","==",true).where("status","==","aberto")
+          .onSnapshot(s=>{pb=s.docs.map(d=>({id:d.id,...d.data()}));mix()},erro);
+      }else{
+        const q=papel==="restrito"?col.where("status","==","aberto"):col;
+        unsub=q.onSnapshot(s=>{pedidos=s.docs.map(d=>({id:d.id,...d.data()}));render()},erro);
+      }
       if(unsubS){unsubS();unsubS=null}
       if(papel==="entregador")unsubS=colS.where("status","==","aguardando").onSnapshot(s=>{pedidosSetta=s.docs.map(d=>({id:d.id,...d.data()}));render()},
         e=>{$("#note").textContent="Erro ao carregar Aguardando Entrega: "+e.message});
       $("#note").textContent="Conectado como "+em+".";
     }else{
       if(unsub){unsub();unsub=null}
+      if(unsub2){unsub2();unsub2=null}
       if(unsubS){unsubS();unsubS=null}pedidosSetta=[];pedidos=[];papel=null;$("#login").hidden=false;$("#app").hidden=true;
     }
   });
@@ -163,6 +174,10 @@ function renderTabs(){
 function renderForm(){
   const t=TABS[tab];
   if(tab==="fin"||tab==="conferir"||papel==="entregador"){$("#formBox").innerHTML="";return}
+  const cx=tab==="carro"?`<label style="grid-column:1/-1;flex-direction:row;align-items:center;gap:8px;font-size:14px;color:var(--tx)"><input type="checkbox" name="entregarCarro" style="width:auto"> Entregar ao carro de linha</label>
+   <label class="cl" hidden>Endereço de entrega<input name="endereco"></label>
+   <label class="cl" hidden>Cidade<input name="cidade" list="cidades" value="Juazeiro do Norte"></label>
+   <label class="cl" hidden>Nome do motorista do carro de linha<input name="motorista"></label>`:"";
   const pg=`<label>Forma de pagamento<select name="pagamento">${PAG.map(x=>`<option>${x}</option>`).join("")}</select></label>
    <label id="vl" hidden>Valor para conferir (R$)<input name="valor" type="number" min="0.01" step="0.01" inputmode="decimal"></label>
    <label>Já pagou?<select name="pago"><option>Não</option><option>Sim</option></select></label>`;
@@ -174,18 +189,22 @@ function renderForm(){
    <label>Volumes<input name="volumes" type="number" min="1" step="1" required></label>
    ${t.end?`<label>Endereço<input name="endereco" required></label>
    <label>Cidade<input name="cidade" list="cidades" value="${tab==="crato"?"Crato":"Juazeiro do Norte"}"></label>`:""}
+   ${cx}
    ${pg}
    <label>Observação (opcional)<input name="obs" maxlength="300"></label>
    <button class="b" type="submit">+ Adicionar em ${t.nome}</button></form>`;
   const fe=$("#f").elements,sel=fe.pagamento,vl=$("#vl"),vin=fe.valor;
   const tg=()=>{const on=/pix|boleto|transfer/i.test(sel.value);vl.hidden=!on;vin.required=on;if(!on)vin.value=""};
   sel.onchange=tg;tg();
+  let tgc=()=>{};
+  if(tab==="carro"){const ck=fe.entregarCarro;tgc=()=>{const on=ck.checked;document.querySelectorAll("#f .cl").forEach(l=>l.hidden=!on);fe.endereco.required=on;fe.motorista.required=on};ck.onchange=tgc;tgc()}
   $("#f").onsubmit=e=>{e.preventDefault();
     const d=Object.fromEntries(new FormData(e.target).entries());
     if(d.valor)d.valor=parseFloat(d.valor);else delete d.valor;
     if(!d.obs)delete d.obs;
+    if(tab==="carro"){if(d.entregarCarro==="on")d.entregarCarro=true;else{delete d.entregarCarro;delete d.endereco;delete d.cidade;delete d.motorista}}
     d.tipo=tab;d.status="aberto";d.criado=Date.now();
-    salvar(d);e.target.reset();tg();e.target.elements.numero.focus();};
+    salvar(d);e.target.reset();tg();tgc();e.target.elements.numero.focus();};
 }
 function renderSetta(){
   let rows=pedidosSetta.slice();
@@ -198,7 +217,7 @@ function renderList(){
   if(tab==="setta")return renderSetta();
   const t=TABS[tab];
   let rows=pedidos.filter(p=>naAba(p,tab));
-  if(busca){const b=busca.toLowerCase();rows=rows.filter(p=>[p.numero,p.cliente,p.vendedor,p.quem,p.endereco].join(" ").toLowerCase().includes(b))}
+  if(busca){const b=busca.toLowerCase();rows=rows.filter(p=>[p.numero,p.cliente,p.vendedor,p.quem,p.endereco,p.motorista].join(" ").toLowerCase().includes(b))}
   const porNum=(a,b)=>String(b.numero||"").localeCompare(String(a.numero||""),"pt-BR",{numeric:true})||(b.criado||0)-(a.criado||0);
   rows.sort(tab==="fin"?(a,b)=>(b.finalizadoEm||0)-(a.finalizadoEm||0)||porNum(a,b):porNum);
   if(!rows.length){$("#list").innerHTML=`<div class="empty">Nenhum pedido ${tab==="fin"?"finalizado":tab==="conferir"?"para conferir":"em aberto"} aqui.</div>`;return}
@@ -206,12 +225,12 @@ function renderList(){
   const showEnd=tab==="entrega"||tab==="crato";
   const showRet=tab==="retirada"||tab==="carro";
   const head=`<th>Pedido/NF</th><th>Vendedor</th><th>Cliente</th><th>Data do pedido</th>${showEnd?"":"<th>Horário da retirada</th>"}<th>Volumes</th>`+
-    (view?`<th>Origem</th><th>Endereço / Retirou</th>`:showEnd?`<th>Endereço</th>`:`<th>Quem retirou</th>`)+
+    (view?`<th>Origem</th><th>Endereço / Retirou</th>`:showEnd?`<th>Endereço</th>`:`<th>Quem retirou</th>${tab==="carro"?"<th>Entregar ao carro de linha</th>":""}`)+
     `<th>Pagamento</th><th>Valor</th><th>Pago?</th>`+(tab==="fin"?`<th>Finalizado em</th>`:tab==="conferir"?`<th>Saída em</th>`:"")+`<th>Observação</th><th>Ações</th>`;
   const body=rows.map(p=>{
     const isEnd=p.tipo==="entrega"||p.tipo==="crato";
-    const mid=view?`<td>${esc(TABS[p.tipo].nome)}</td><td>${isEnd?mapa(p.endereco,p.cidade):esc(p.quem)}</td>`
-      :showEnd?`<td>${mapa(p.endereco,p.cidade)}</td>`:`<td>${esc(p.quem)}</td>`;
+    const mid=view?`<td>${esc(TABS[p.tipo].nome)}</td><td>${isEnd?mapa(p.endereco,p.cidade):p.entregarCarro?infoCarro(p):esc(p.quem)}</td>`
+      :showEnd?`<td>${mapa(p.endereco,p.cidade)}</td>`:`<td>${esc(p.quem)}</td>${tab==="carro"?`<td>${infoCarro(p)}</td>`:""}`;
     let acoes=tab==="fin"?`<button class="s" data-a="reabrir" data-i="${p.id}">Reabrir</button><button class="s" data-a="edit" data-i="${p.id}">Editar</button><button class="s" data-a="del" data-i="${p.id}">Excluir</button>`
       :tab==="conferir"?`<button class="s f" data-a="conf" data-i="${p.id}">Pagamento conferido</button><button class="s" data-a="voltar" data-i="${p.id}">Voltar</button><button class="s" data-a="edit" data-i="${p.id}">Editar</button><button class="s" data-a="del" data-i="${p.id}">Excluir</button>`
       :`<button class="s f" data-a="fin" data-i="${p.id}">Finalizar</button><button class="s" data-a="edit" data-i="${p.id}">Editar</button><button class="s" data-a="del" data-i="${p.id}">Excluir</button>`;
@@ -233,6 +252,8 @@ function editar(p){
   <label>Volumes<input name="volumes" type="number" min="1" step="1" required value="${esc(p.volumes)}"></label>
   <label id="eEnd">Endereço<input name="endereco" value="${esc(p.endereco)}"></label>
   <label id="eCid">Cidade<input name="cidade" list="cidades" value="${esc(p.cidade)}"></label>
+  <label id="eCk" style="grid-column:1/-1;flex-direction:row;align-items:center;gap:8px;font-size:14px;color:var(--tx)"><input type="checkbox" name="entregarCarro" style="width:auto" ${p.entregarCarro?"checked":""}> Entregar ao carro de linha</label>
+  <label id="eMot">Nome do motorista do carro de linha<input name="motorista" value="${esc(p.motorista)}"></label>
   <label id="eQ">Quem retirou<input name="quem" value="${esc(p.quem)}"></label>
   <label id="eH">Horário da retirada<input name="horario" type="time" value="${esc(p.horario)}"></label>
   <label>Forma de pagamento<select name="pagamento">${PAG.map(x=>`<option ${x===p.pagamento?"selected":""}>${x}</option>`).join("")}</select></label>
@@ -241,18 +262,21 @@ function editar(p){
   <label>Observação (opcional)<input name="obs" maxlength="300" value="${esc(p.obs)}"></label>
   <div style="grid-column:1/-1;display:flex;gap:8px;justify-content:flex-end"><button type="button" class="s" id="eC">Cancelar</button><button class="b" type="submit">Salvar alterações</button></div>`;
   const tg=()=>{
-    const fe=f.elements,t=fe.tipo.value,end=t==="entrega"||t==="crato";
-    $("#eEnd").hidden=!end;$("#eCid").hidden=!end;fe.endereco.required=end;
+    const fe=f.elements,t=fe.tipo.value,end=t==="entrega"||t==="crato",car=t==="carro",ck=car&&fe.entregarCarro.checked,addr=end||ck;
+    $("#eCk").hidden=!car;$("#eMot").hidden=!ck;fe.motorista.required=ck;
+    $("#eEnd").hidden=!addr;$("#eCid").hidden=!addr;fe.endereco.required=addr;
     const sq=!end&&p.status!=="aberto";$("#eQ").hidden=!sq;$("#eH").hidden=!sq;
     const pv=/pix|boleto|transfer/i.test(fe.pagamento.value);$("#eV").hidden=!pv;fe.valor.required=pv;
   };
-  f.elements.tipo.onchange=tg;f.elements.pagamento.onchange=tg;tg();
+  f.elements.tipo.onchange=tg;f.elements.pagamento.onchange=tg;f.elements.entregarCarro.onchange=tg;tg();
   $("#eC").onclick=()=>dlg.close();
   f.onsubmit=e=>{e.preventDefault();
     const d=Object.fromEntries(new FormData(f).entries());
     const n={...p,...d};
     ["valor","quem","horario","data","cidade","obs"].forEach(k=>{if(!d[k])delete n[k]});
     if(d.valor)n.valor=parseFloat(d.valor);
+    if(n.tipo==="carro"&&d.entregarCarro==="on")n.entregarCarro=true;
+    else{delete n.entregarCarro;delete n.motorista;if(n.tipo==="carro"){delete n.endereco;delete n.cidade}}
     dlg.close();
     if(n.tipo!==p.tipo&&n.status==="aberto")tab=n.tipo;
     salvar(n);
@@ -273,7 +297,8 @@ function acao(a,id){
     p.pago="Sim";p.status="finalizado";p.finalizadoEm=Date.now();return salvar(p)}
   if(a==="fin"){
     if(!precisaConferir(p)&&p.pago!=="Sim"&&!confirm("O pedido "+p.numero+" ainda NÃO está pago. Finalizar mesmo assim?"))return;
-    if(p.tipo==="retirada"||p.tipo==="carro"){
+    if(p.tipo==="carro"&&p.entregarCarro){p.quem=p.motorista||"";p.horario=hora()}
+    else if(p.tipo==="retirada"||p.tipo==="carro"){
       const n=prompt("Quem retirou o pedido "+p.numero+"?");if(!n||!n.trim())return;p.quem=n.trim();
       p.horario=hora();
     }
