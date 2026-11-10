@@ -62,6 +62,9 @@ dialog form{border:0;margin:0;box-shadow:none}
 a{color:var(--pri);text-decoration:none;font-weight:600}a:hover{text-decoration:underline}
 .toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,20px);background:#2a1470;color:#fff;padding:13px 22px;border-radius:999px;box-shadow:0 10px 30px rgba(0,0,0,.35);opacity:0;transition:.25s;pointer-events:none;z-index:99;font-weight:600;max-width:92vw;text-align:center}
 .toast.on{opacity:1;transform:translate(-50%,0)}
+td small{display:block;color:var(--mut);font-size:12px}
+table.compacta{min-width:0}
+.compacta th,.compacta td{padding:10px 8px}
 @media (min-width:761px){#novo{display:none}}
 @media (max-width:760px){
  main{padding:12px}
@@ -76,6 +79,7 @@ a{color:var(--pri);text-decoration:none;font-weight:600}a:hover{text-decoration:
  td::before{content:attr(data-l);color:var(--mut);font-size:11px;font-weight:700;text-transform:uppercase;text-align:left;flex:none}
  td:first-child{background:var(--grad);color:#fff;font-size:17px;padding:10px 14px;margin:-6px 0 4px}
  td:first-child::before{color:#ffe9a8}
+ td:first-child small{display:inline;color:#e6dcff;margin-left:8px}
  td:last-child{justify-content:flex-end;flex-wrap:wrap;padding-bottom:10px}
  td:last-child::before{display:none}
  .bar input{max-width:none;flex:1 1 100%}
@@ -258,6 +262,16 @@ function renderSetta(){
   if(!rows.length){$("#list").innerHTML='<div class="empty">Nenhum pedido aguardando entrega.</div>';return}
   $("#list").innerHTML='<table><thead><tr><th>Pedido</th><th>Filial</th><th>Volumes</th><th>Separador</th><th>Conferido por</th><th>Embalado por</th><th>Atualizado em</th></tr></thead><tbody>'+rows.map(p=>'<tr><td><b>'+esc(p.numero)+'</b></td><td>'+esc(p.filial)+'</td><td>'+esc(p.volumes)+'</td><td>'+esc(p.separador)+'</td><td>'+esc(p.conferiu)+'</td><td>'+esc(p.embalou)+'</td><td>'+dataf(p.atualizado)+'</td></tr>').join("")+'</tbody></table>';rotular();
 }
+function linhaC(p,acoes){
+  const isEnd=p.tipo==="entrega"||p.tipo==="crato";
+  const onde=isEnd?mapa(p.endereco,p.cidade):p.entregarCarro?infoCarro(p):(p.quem?"Retirou: "+esc(p.quem)+(p.horario?" às "+esc(p.horario):""):"");
+  const info=[fmtData(p.data),p.volumes?esc(p.volumes)+" vol.":""].filter(Boolean).join(" · ");
+  return `<tr><td><b>${esc(p.numero)}</b><small>${info}</small></td>
+    <td>${esc(p.cliente)}<small>${esc(p.vendedor)}</small></td>
+    <td>${esc(TABS[p.tipo].nome)}</td><td>${onde}</td>
+    <td>${esc(p.pagamento)}<small>${p.valor!=null?BRL(p.valor):""}</small></td>
+    <td><button class="pg ${p.pago==="Sim"?"y":"n"}" data-a="pago" data-i="${p.id}" title="Clique para alternar">${p.pago==="Sim"?"Sim":"Não"}</button></td>
+    <td>${dataf(tab==="fin"?p.finalizadoEm:p.saidaEm)}</td><td>${esc(p.obs)}</td><td>${acoes}</td></tr>`}
 function renderList(){
   if(tab==="setta")return renderSetta();
   const t=TABS[tab];
@@ -269,9 +283,10 @@ function renderList(){
   const view=tab==="fin"||tab==="conferir";
   const showEnd=tab==="entrega"||tab==="crato";
   const showRet=tab==="retirada"||tab==="carro";
-  const head=`<th>Pedido/NF</th><th>Vendedor</th><th>Cliente</th><th>Data do pedido</th>${showEnd?"":"<th>Horário da retirada</th>"}<th>Volumes</th>`+
+  const headN=`<th>Pedido/NF</th><th>Vendedor</th><th>Cliente</th><th>Data do pedido</th>${showEnd?"":"<th>Horário da retirada</th>"}<th>Volumes</th>`+
     (view?`<th>Origem</th><th>Endereço / Retirou</th>`:showEnd?`<th>Endereço</th>`:`<th>Quem retirou</th>${tab==="carro"?"<th>Entregar ao carro de linha</th>":""}`)+
     `<th>Pagamento</th><th>Valor</th><th>Pago?</th>`+(tab==="fin"?`<th>Finalizado em</th>`:tab==="conferir"?`<th>Saída em</th>`:"")+`<th>Observação</th><th>Ações</th>`;
+  const head=view?`<th>Pedido / Data</th><th>Cliente / Vendedor</th><th>Origem</th><th>Retirada / Entrega</th><th>Pagamento</th><th>Pago?</th><th>${tab==="fin"?"Finalizado em":"Saída em"}</th><th>Observação</th><th>Ações</th>`:headN;
   const body=rows.map(p=>{
     const isEnd=p.tipo==="entrega"||p.tipo==="crato";
     const mid=view?`<td>${esc(TABS[p.tipo].nome)}</td><td>${isEnd?mapa(p.endereco,p.cidade):p.entregarCarro?infoCarro(p):esc(p.quem)}</td>`
@@ -281,10 +296,11 @@ function renderList(){
       :`<button class="s f" data-a="fin" data-i="${p.id}">Finalizar</button><button class="s" data-a="edit" data-i="${p.id}">Editar</button><button class="s" data-a="del" data-i="${p.id}">Excluir</button>`;
     if(papel==="entregador")acoes=`<button class="s" data-a="obs" data-i="${p.id}">Observação</button><button class="s f" data-a="fin" data-i="${p.id}">Finalizar</button>`;
     else if(papel==="restrito")acoes=acoes.replace(/<button class="s" data-a="del"[^>]*>Excluir<\/button>/,"");
+    if(view)return linhaC(p,acoes);
     return `<tr><td><b>${esc(p.numero)}</b></td><td>${esc(p.vendedor)}</td><td>${esc(p.cliente)}</td><td>${fmtData(p.data)}</td>${showEnd?"":`<td>${esc(p.horario)}</td>`}<td>${esc(p.volumes)}</td>${mid}
       <td>${esc(p.pagamento)}</td><td>${p.valor!=null?BRL(p.valor):""}</td><td><button class="pg ${p.pago==="Sim"?"y":"n"}" data-a="pago" data-i="${p.id}" title="Clique para alternar">${p.pago==="Sim"?"Sim":"Não"}</button></td>
       ${tab==="fin"?`<td>${dataf(p.finalizadoEm)}</td>`:tab==="conferir"?`<td>${dataf(p.saidaEm)}</td>`:""}<td>${esc(p.obs)}</td><td>${acoes}</td></tr>`}).join("");
-  $("#list").innerHTML=`<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+  $("#list").innerHTML=`<table class="${view?"compacta":""}"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
   rotular();
   document.querySelectorAll("[data-a]").forEach(b=>b.onclick=()=>acao(b.dataset.a,b.dataset.i));
 }
