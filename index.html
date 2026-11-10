@@ -255,12 +255,18 @@ function renderForm(){
     d.tipo=tab;d.status="aberto";d.criado=Date.now();
     salvar(d,"Pedido adicionado 🎉");e.target.reset();tg();tgc();tgv();if(movel()){formAberto=false;$("#formBox").hidden=true}else e.target.elements.numero.focus();};
 }
+async function entregarSetta(id){
+  const p=pedidosSetta.find(x=>x.id===id);if(!p)return;
+  if(!confirm("Confirma que o pedido "+p.numero+" ("+p.filial+") foi entregue?"))return;
+  try{await colS.doc(id).update({status:"conferencia",atualizado:Date.now(),entregueEm:Date.now()});toast("Entrega registrada ✅ Agora a loja confere o pedido")}
+  catch(e){alert("Não foi possível registrar: "+(e.message||e.code))}
+} 
 function renderSetta(){
   let rows=pedidosSetta.slice();
   if(busca){const b=busca.toLowerCase();rows=rows.filter(p=>[p.numero,p.filial,p.separador,p.conferiu,p.embalou].join(" ").toLowerCase().includes(b))}
   rows.sort((a,b)=>(b.atualizado||0)-(a.atualizado||0));
   if(!rows.length){$("#list").innerHTML='<div class="empty">Nenhum pedido aguardando entrega.</div>';return}
-  $("#list").innerHTML='<table><thead><tr><th>Pedido</th><th>Filial</th><th>Volumes</th><th>Separador</th><th>Conferido por</th><th>Embalado por</th><th>Atualizado em</th></tr></thead><tbody>'+rows.map(p=>'<tr><td><b>'+esc(p.numero)+'</b></td><td>'+esc(p.filial)+'</td><td>'+esc(p.volumes)+'</td><td>'+esc(p.separador)+'</td><td>'+esc(p.conferiu)+'</td><td>'+esc(p.embalou)+'</td><td>'+dataf(p.atualizado)+'</td></tr>').join("")+'</tbody></table>';rotular();
+  $("#list").innerHTML='<table><thead><tr><th>Pedido</th><th>Filial</th><th>Volumes</th><th>Separador</th><th>Conferido por</th><th>Embalado por</th><th>Atualizado em</th><th>Ações</th></tr></thead><tbody>'+rows.map(p=>'<tr><td><b>'+esc(p.numero)+'</b></td><td>'+esc(p.filial)+'</td><td>'+esc(p.volumes)+'</td><td>'+esc(p.separador)+'</td><td>'+esc(p.conferiu)+'</td><td>'+esc(p.embalou)+'</td><td>'+'<td>'+dataf(p.atualizado)+'</td><td><button class="s f" data-a="entregueS" data-i="'+p.id+'">✅ Entregue</button></td></tr>').join("")+</tbody></table>';rotular();document.querySelectorAll('[data-a="entregueS"]').forEach(b=>b.onclick=()=>entregarSetta(b.dataset.i));
 }
 function linhaC(p,acoes){
   const isEnd=p.tipo==="entrega"||p.tipo==="crato";
